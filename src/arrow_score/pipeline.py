@@ -1,4 +1,4 @@
-"""Core TASK 1B image-difference demo pipeline."""
+"""Core TASK 1C configurable image-difference demo pipeline."""
 
 import time
 from pathlib import Path
@@ -7,6 +7,7 @@ import numpy as np
 
 from arrow_score.arrow_detector import SimpleArrowDetector
 from arrow_score.calibration import load_calibration
+from arrow_score.config import ArrowDetectorConfig, DiffConfig, PipelineDebugConfig
 from arrow_score.diff_detector import BasicFrameDiffDetector
 from arrow_score.image_loader import load_pair_images
 from arrow_score.interfaces import ArrowDetector, DiffDetector, FrameSource
@@ -15,7 +16,7 @@ from arrow_score.result_writer import JsonCsvResultWriter
 from arrow_score.scorer import BasicScorer, make_no_candidate_result
 from arrow_score.target_model import get_target_spec
 from arrow_score.types import Calibration, ScoreResult, TargetSpec
-from arrow_score.visualize import BasicVisualizer, save_visualization
+from arrow_score.visualize import BasicVisualizer, draw_candidate_debug, draw_diff_debug, save_visualization
 
 
 def _image_from_loaded_pair(image: object, label: str) -> np.ndarray:
@@ -35,6 +36,7 @@ def run_pipeline(
     visualizer: BasicVisualizer,
     result_writer: JsonCsvResultWriter,
     output_dir: Path,
+    debug_config: PipelineDebugConfig | None = None,
 ) -> list[ScoreResult]:
     """Run the full image-pair demo pipeline and write outputs."""
     output_dir = Path(output_dir)
@@ -68,6 +70,13 @@ def run_pipeline(
         visualize_start = time.perf_counter()
         visualized = visualizer.draw_result(curr_image, calibration, target_spec, pair_results)
         save_visualization(visualized, output_dir / "visualized" / f"pair_{pair.index:04d}.png")
+        if debug_config and debug_config.save_debug_images:
+            if debug_config.save_masks:
+                save_visualization(diff_output.mask, output_dir / "debug" / "masks" / f"pair_{pair.index:04d}_mask.png")
+            if debug_config.save_bbox_debug:
+                save_visualization(draw_diff_debug(curr_image, diff_output), output_dir / "debug" / "bboxes" / f"pair_{pair.index:04d}_bbox.png")
+            if debug_config.save_candidate_debug:
+                save_visualization(draw_candidate_debug(curr_image, candidates), output_dir / "debug" / "candidates" / f"pair_{pair.index:04d}_candidates.png")
         visualize_ms = (time.perf_counter() - visualize_start) * 1000
 
         total_ms = (time.perf_counter() - total_start) * 1000
@@ -86,6 +95,9 @@ def run_image_sequence_demo(
     calibration_path: Path,
     output_dir: Path,
     target_type: str = "90",
+    diff_config: DiffConfig | None = None,
+    arrow_config: ArrowDetectorConfig | None = None,
+    debug_config: PipelineDebugConfig | None = None,
 ) -> list[ScoreResult]:
     """Run the demo pipeline on a directory of sorted images."""
     calibration = load_calibration(calibration_path)
@@ -94,12 +106,13 @@ def run_image_sequence_demo(
         frame_source=ImageSequenceSource(input_dir),
         calibration=calibration,
         target_spec=target_spec,
-        diff_detector=BasicFrameDiffDetector(),
-        arrow_detector=SimpleArrowDetector(),
+        diff_detector=BasicFrameDiffDetector(diff_config),
+        arrow_detector=SimpleArrowDetector(arrow_config),
         scorer=BasicScorer(),
         visualizer=BasicVisualizer(),
         result_writer=JsonCsvResultWriter(),
         output_dir=output_dir,
+        debug_config=debug_config,
     )
 
 
@@ -109,6 +122,9 @@ def run_image_pair_demo(
     calibration_path: Path,
     output_dir: Path,
     target_type: str = "90",
+    diff_config: DiffConfig | None = None,
+    arrow_config: ArrowDetectorConfig | None = None,
+    debug_config: PipelineDebugConfig | None = None,
 ) -> list[ScoreResult]:
     """Run the demo pipeline on one before/after image pair."""
     calibration = load_calibration(calibration_path)
@@ -117,10 +133,11 @@ def run_image_pair_demo(
         frame_source=ImagePairSource(prev_path, curr_path),
         calibration=calibration,
         target_spec=target_spec,
-        diff_detector=BasicFrameDiffDetector(),
-        arrow_detector=SimpleArrowDetector(),
+        diff_detector=BasicFrameDiffDetector(diff_config),
+        arrow_detector=SimpleArrowDetector(arrow_config),
         scorer=BasicScorer(),
         visualizer=BasicVisualizer(),
         result_writer=JsonCsvResultWriter(),
         output_dir=output_dir,
+        debug_config=debug_config,
     )

@@ -13,23 +13,26 @@ The first version is intentionally narrow:
 - Detects newly changed regions with before/after image differencing.
 - Estimates coarse arrow candidates and maps impact points to the 90 target geometry.
 
-## Current status: TASK 1B
+## Current status: TASK 1C
 
-TASK 1B provides a minimal runnable image-difference demo pipeline:
+TASK 1C provides a configurable image-difference demo pipeline for real-sample parameter tuning:
 
 - Core dataclasses and protocol interfaces.
 - 90 target scoring model.
 - Path-level image sequence and image-pair readers.
 - Real image loading with OpenCV into BGR NumPy arrays.
-- Basic frame differencing and changed-region extraction.
-- Simple elongated-box arrow candidate estimation.
+- Configurable frame differencing and changed-region extraction.
+- Contour/`fitLine` based arrow candidate estimation with multi-candidate debug reasons.
 - Calibration JSON loading/saving and radius conversion helpers.
 - JSON/CSV result writing and basic visualized output images.
-- CLI commands for `info`, `sequence`, and `pair` modes.
+- CLI commands for `info`, `sequence`, and `pair` modes, including detector/debug parameters.
 
 The current code does **not** connect to video streams, cameras, capture cards, or
 network media protocols. It also does **not** use deep learning and does **not**
-attempt high-accuracy or competition-grade arrow detection.
+attempt high-accuracy or competition-grade arrow detection. The project uses
+`opencv-python-headless` because the first stage only needs file-based image
+processing and does not use `cv2.imshow` or other GUI window APIs; visualization
+is saved to image files instead.
 
 ## Local image input
 
@@ -97,6 +100,25 @@ Run an image sequence demo:
 python -m arrow_score.cli sequence --input input_images/demo_sequence --calibration input_images/calibration_90.json --output outputs/demo
 ```
 
+Run an image sequence demo with detector tuning and debug outputs:
+
+```bash
+python -m arrow_score.cli sequence \
+  --input input_images/demo_sequence \
+  --calibration input_images/calibration_90.json \
+  --output outputs/demo \
+  --diff-threshold 25 \
+  --diff-min-area 40 \
+  --blur-kernel 5 \
+  --arrow-min-area 40 \
+  --arrow-min-aspect 2.5 \
+  --arrow-min-line-length 20 \
+  --save-debug \
+  --save-masks \
+  --save-bbox-debug \
+  --save-candidate-debug
+```
+
 Run a before/after pair demo:
 
 ```bash
@@ -111,11 +133,20 @@ The demo writes:
 - `results.csv`
 - `visualized/pair_XXXX.png`
 
+When debug output is enabled, it can also write:
+
+- `debug/masks/pair_XXXX_mask.png`
+- `debug/bboxes/pair_XXXX_bbox.png`
+- `debug/candidates/pair_XXXX_candidates.png`
+
 Generated outputs under `outputs/` are ignored by git except `outputs/.gitkeep`.
 
 ## Next steps
 
-Future tasks can improve image differencing, arrow-shaft detection, calibration
+The current detector is still a traditional-vision heuristic: it differences two
+images, extracts changed contours, fits a line to elongated contours, and picks
+the endpoint nearer to the target center as the estimated impact point. Future
+tasks can improve image differencing, arrow-shaft detection, calibration
 assistance, review tooling, and visualization quality while keeping input,
 detection, scoring, visualization, and result writing modules independently
 replaceable.

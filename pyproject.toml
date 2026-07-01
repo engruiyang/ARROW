@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "numpy",
-  "opencv-python",
+  "opencv-python-headless",
 ]
 
 [project.optional-dependencies]

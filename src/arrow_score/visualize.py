@@ -1,11 +1,12 @@
-"""Minimal OpenCV visualization for scoring results."""
+"""Minimal OpenCV visualization and debug drawing helpers."""
 
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from arrow_score.types import Calibration, ScoreResult, TargetSpec
+from arrow_score.diff_detector import DiffOutput
+from arrow_score.types import ArrowCandidate, Calibration, ScoreResult, TargetSpec
 
 
 class BasicVisualizer:
@@ -42,6 +43,31 @@ class BasicVisualizer:
                 cv2.circle(output, point, 5, (0, 255, 255), -1)
                 cv2.putText(output, str(result.score), (point[0] + 8, point[1] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
         return output
+
+
+def draw_diff_debug(image: np.ndarray, diff_output: DiffOutput) -> np.ndarray:
+    """Draw diff bounding boxes, contours, and changed area on an image."""
+    output = image.copy()
+    if diff_output.contours:
+        cv2.drawContours(output, diff_output.contours, -1, (255, 0, 255), 1)
+    for index, (x, y, w, h) in enumerate(diff_output.bounding_boxes):
+        cv2.rectangle(output, (x, y), (x + w, y + h), (0, 255, 255), 2)
+        cv2.putText(output, f"bbox {index}", (x, max(15, y - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1)
+    cv2.putText(output, f"changed_area={diff_output.changed_area}", (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+    return output
+
+
+def draw_candidate_debug(image: np.ndarray, candidates: list[ArrowCandidate]) -> np.ndarray:
+    """Draw candidate lines, impact points, and confidence labels."""
+    output = image.copy()
+    for index, candidate in enumerate(candidates):
+        start = (int(round(candidate.line_start_px[0])), int(round(candidate.line_start_px[1])))
+        end = (int(round(candidate.line_end_px[0])), int(round(candidate.line_end_px[1])))
+        impact = (int(round(candidate.impact_point_px[0])), int(round(candidate.impact_point_px[1])))
+        cv2.line(output, start, end, (0, 255, 0), 2)
+        cv2.circle(output, impact, 5, (0, 0, 255), -1)
+        cv2.putText(output, f"cand {index} {candidate.confidence}", (impact[0] + 6, impact[1] + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
+    return output
 
 
 def save_visualization(image: np.ndarray, output_path: Path) -> None:

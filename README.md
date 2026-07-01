@@ -150,3 +150,69 @@ tasks can improve image differencing, arrow-shaft detection, calibration
 assistance, review tooling, and visualization quality while keeping input,
 detection, scoring, visualization, and result writing modules independently
 replaceable.
+
+## TASK 1D-1 canonical registration workflow
+
+The legacy `sequence` and `pair` modes are still available, but they depend on a
+manual calibration JSON. TASK 1D-1 adds an automatic target registration path for
+90-target image sequences:
+
+1. Optionally normalize mixed-size field photos with `scripts/normalize_sequence.py`.
+2. Detect each frame's target pose from HSV color rings and the optional center cross.
+3. Warp each detected target to canonical coordinates.
+4. Run the existing diff, arrow candidate, scorer, writer, and visualizer modules in canonical coordinates.
+
+Canonical coordinates use:
+
+- image size: `980x980 px`
+- target center: `(490, 490)`
+- outer radius: `490 px`
+- scale: `2 px/mm`
+
+The current registration method is intentionally limited to HSV blue/red/yellow
+rings plus an optional dark center cross refinement. Logo points, paper-edge
+reference points, and homography-based correction are not included yet; those are
+reserved for TASK 1D-2.
+
+### Normalize a raw local sequence
+
+```bash
+python scripts/normalize_sequence.py \
+  --input input_images/demo_sequence \
+  --output input_images/demo_sequence_fixed \
+  --width 1600 \
+  --height 1600 \
+  --padding-ratio 1.25 \
+  --fallback center-crop \
+  --save-debug
+```
+
+The script writes normalized `frame_0001.jpg`, `frame_0002.jpg`, ... files and a
+`manifest.csv` with source dimensions, crop boxes, output dimensions, and
+registration success/failure reasons. Normalized images remain under
+`input_images/` and are ignored by git.
+
+### Run canonical sequence mode
+
+```bash
+python -m arrow_score.cli canonical-sequence \
+  --input input_images/demo_sequence_fixed \
+  --output outputs/demo_canonical \
+  --diff-threshold 25 \
+  --diff-min-area 40 \
+  --arrow-min-aspect 2.0 \
+  --save-debug \
+  --save-masks \
+  --save-bbox-debug \
+  --save-candidate-debug
+```
+
+If registration fails or produces poor alignment, first inspect:
+
+```text
+outputs/demo_canonical/debug/registration/
+outputs/demo_canonical/debug/canonical/
+```
+
+Canonical mode always writes registration and canonical debug images. Additional
+mask, bbox, and candidate debug images are controlled by the existing debug flags.

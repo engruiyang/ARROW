@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 
+from arrow_score.canonical_pipeline import run_canonical_image_sequence_demo
 from arrow_score.config import ArrowDetectorConfig, DiffConfig, PipelineDebugConfig
 from arrow_score.pipeline import run_image_pair_demo, run_image_sequence_demo
 
@@ -10,9 +11,9 @@ from arrow_score.pipeline import run_image_pair_demo, run_image_sequence_demo
 def _print_info() -> None:
     """Print project and current-stage information."""
     print("ARROW - archery scoring assistance")
-    print("Current stage: TASK 1C configurable image-difference demo pipeline")
+    print("Current stage: TASK 1D-1 canonical target registration demo pipeline")
     print("Supported target types: 90")
-    print("Supported inputs: image sequence directory or before/after image pair")
+    print("Supported inputs: image sequence directory, before/after image pair, or canonical sequence")
     print("Not supported: video streams, cameras, GUI windows, deep learning models")
 
 
@@ -81,6 +82,21 @@ def main(argv: list[str] | None = None) -> int:
     pair_parser.add_argument("--curr", required=True, type=Path, help="current/after image path")
     _add_demo_options(pair_parser)
 
+    canonical_parser = subparsers.add_parser("canonical-sequence", help="auto-register targets and run demo in canonical coordinates")
+    canonical_parser.add_argument("--input", required=True, type=Path, help="directory containing input images")
+    canonical_parser.add_argument("--output", required=True, type=Path, help="output directory")
+    canonical_parser.add_argument("--target-type", default="90", help="target type, currently only 90")
+    canonical_parser.add_argument("--diff-threshold", type=int, default=25, help="binary threshold for frame differencing")
+    canonical_parser.add_argument("--diff-min-area", type=int, default=20, help="minimum contour area for diff boxes")
+    canonical_parser.add_argument("--blur-kernel", type=int, default=5, help="positive odd Gaussian blur kernel")
+    canonical_parser.add_argument("--arrow-min-area", type=int, default=20, help="minimum contour area for arrow candidates")
+    canonical_parser.add_argument("--arrow-min-aspect", type=float, default=2.0, help="minimum arrow candidate aspect ratio")
+    canonical_parser.add_argument("--arrow-min-line-length", type=float, default=10.0, help="minimum fitLine segment length")
+    canonical_parser.add_argument("--save-debug", action="store_true", help="enable extra diff/candidate debug image outputs")
+    canonical_parser.add_argument("--save-masks", action="store_true", help="save binary diff masks")
+    canonical_parser.add_argument("--save-bbox-debug", action="store_true", help="save bbox/contour debug images")
+    canonical_parser.add_argument("--save-candidate-debug", action="store_true", help="save candidate line debug images")
+
     args = parser.parse_args(argv)
 
     try:
@@ -104,6 +120,17 @@ def main(argv: list[str] | None = None) -> int:
                 args.prev,
                 args.curr,
                 args.calibration,
+                args.output,
+                args.target_type,
+                diff_config=_diff_config_from_args(args),
+                arrow_config=_arrow_config_from_args(args),
+                debug_config=_debug_config_from_args(args),
+            )
+            _print_success(len({result.pair_index for result in results}), args.output)
+            return 0
+        if args.command == "canonical-sequence":
+            results = run_canonical_image_sequence_demo(
+                args.input,
                 args.output,
                 args.target_type,
                 diff_config=_diff_config_from_args(args),

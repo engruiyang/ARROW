@@ -4,7 +4,7 @@ from arrow_score.cli import main
 def test_cli_info_returns_success(capsys) -> None:
     assert main(["info"]) == 0
     captured = capsys.readouterr()
-    assert "TASK 1C" in captured.out
+    assert "TASK 1D-1" in captured.out
 
 
 def test_cli_sequence_help_includes_debug_options(capsys) -> None:
